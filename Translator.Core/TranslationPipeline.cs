@@ -26,6 +26,19 @@ public sealed record PipelineResult(
     IReadOnlyList<TextBlock> Blocks,
     PipelineDiagnostics Diagnostics)
 {
+    /// <summary>OCR 原始结果，供调试覆盖层显示。</summary>
+    public OcrResult Ocr { get; init; } = OcrResult.Empty;
+
+    /// <summary>参与布局的占用区域，供调试覆盖层显示。</summary>
+    public IReadOnlyList<RectInt> Occupied { get; init; } = [];
+
+    /// <summary>所有候选落点，供调试覆盖层显示。</summary>
+    public IReadOnlyList<RectInt> Candidates { get; init; } = [];
+
+    /// <summary>段落到译文的映射，供渲染使用。</summary>
+    public IReadOnlyDictionary<string, string> Translations { get; init; }
+        = new Dictionary<string, string>();
+
     public static readonly PipelineResult Empty = new(
         [], [], new PipelineDiagnostics(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
 }
@@ -159,14 +172,28 @@ public sealed class TranslationPipeline
                     EstimateBubbleSize(candidates[i], tr.TranslatedText)));
             }
 
-            var placements = _layout.Layout(requests, region, occupied);
+            var layoutResult = _layout.LayoutDetailed(requests, region, occupied);
+            var placements = layoutResult.Placements;
             long layoutMs = sw.ElapsedMilliseconds;
 
             var diag = new PipelineDiagnostics(
                 captureMs, ocrMs, mergeMs, translateMs, layoutMs,
                 ocr.Lines.Count, blocks.Count, skipped, cacheHits, translations.Count);
 
-            return new PipelineResult(placements, blocks, diag);
+            var translationMap = new Dictionary<string, string>(StringComparer.Ordinal);
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                if (translations[i].IsSuccess)
+                    translationMap[candidates[i].Id] = translations[i].TranslatedText;
+            }
+
+            return new PipelineResult(placements, blocks, diag)
+            {
+                Ocr = ocr,
+                Occupied = occupied,
+                Candidates = layoutResult.AllCandidates,
+                Translations = translationMap,
+            };
         }
         finally
         {

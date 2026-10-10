@@ -1,0 +1,135 @@
+<Window x:Class="Translator.App.Views.FirstRunWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="欢迎使用屏幕翻译" Height="560" Width="680"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        FontFamily="Microsoft YaHei UI, Segoe UI"
+        Background="#FAFAFA">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <Border Grid.Row="0" Background="#1C1C1E" Padding="24,18">
+            <StackPanel>
+                <TextBlock Text="屏幕翻译" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
+                <TextBlock Text="框选屏幕上的英文，译文气泡出现在原文旁边。全程离线，文字不出本机。"
+                           Foreground="#BBFFFFFF" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 步骤 -->
+        <ScrollViewer Grid.Row="1" Padding="24" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- 步骤 1：翻译模型 -->
+                <Border Background="White" BorderBrush="#E5E5E5" BorderThickness="1"
+                        CornerRadius="8" Padding="16" Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="ModelStepIcon" Text="①" FontSize="16" FontWeight="Bold"
+                                       Foreground="#4C9AFF" VerticalAlignment="Center"/>
+                            <TextBlock Text="下载翻译模型" FontSize="14" FontWeight="SemiBold"
+                                       Margin="10,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock x:Name="ModelStatusText" Foreground="#666666" FontSize="12"
+                                   Margin="26,8,0,0" TextWrapping="Wrap"
+                                   Text="正在检查…"/>
+                        <ProgressBar x:Name="ModelProgress" Height="6" Margin="26,10,0,0"
+                                     Minimum="0" Maximum="100" Visibility="Collapsed"/>
+                        <Button x:Name="DownloadButton" Content="开始下载（约 45 MB）"
+                                Margin="26,10,0,0" Padding="14,7" HorizontalAlignment="Left"
+                                Click="OnDownloadModel"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 步骤 2：OCR 语言包 -->
+                <Border Background="White" BorderBrush="#E5E5E5" BorderThickness="1"
+                        CornerRadius="8" Padding="16" Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="OcrStepIcon" Text="②" FontSize="16" FontWeight="Bold"
+                                       Foreground="#4C9AFF" VerticalAlignment="Center"/>
+                            <TextBlock Text="英文 OCR 语言包" FontSize="14" FontWeight="SemiBold"
+                                       Margin="10,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock x:Name="OcrStatusText" Foreground="#666666" FontSize="12"
+                                   Margin="26,8,0,0" TextWrapping="Wrap"/>
+                        <Button x:Name="OcrHelpButton" Content="如何安装"
+                                Margin="26,10,0,0" Padding="14,7" HorizontalAlignment="Left"
+                                Visibility="Collapsed" Click="OnShowOcrHelp"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 步骤 3：快捷键 -->
+                <Border Background="White" BorderBrush="#E5E5E5" BorderThickness="1"
+                        CornerRadius="8" Padding="16" Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="③" FontSize="16" FontWeight="Bold"
+                                       Foreground="#4C9AFF" VerticalAlignment="Center"/>
+                            <TextBlock Text="快捷键" FontSize="14" FontWeight="SemiBold"
+                                       Margin="10,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Grid Margin="26,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/><RowDefinition/><RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" Grid.Column="0" Background="#F0F0F0" CornerRadius="4"
+                                    Padding="8,3" Margin="0,0,12,6">
+                                <TextBlock x:Name="Hotkey1Text" FontFamily="Consolas" FontSize="12"/>
+                            </Border>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="框选要翻译的区域"
+                                       FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+
+                            <Border Grid.Row="1" Grid.Column="0" Background="#F0F0F0" CornerRadius="4"
+                                    Padding="8,3" Margin="0,0,12,6">
+                                <TextBlock x:Name="Hotkey2Text" FontFamily="Consolas" FontSize="12"/>
+                            </Border>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="开始 / 暂停"
+                                       FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+
+                            <Border Grid.Row="2" Grid.Column="0" Background="#F0F0F0" CornerRadius="4"
+                                    Padding="8,3" Margin="0,0,12,0">
+                                <TextBlock x:Name="Hotkey3Text" FontFamily="Consolas" FontSize="12"/>
+                            </Border>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="全部折叠 / 展开"
+                                       FontSize="12" VerticalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- 隐私说明 -->
+                <Border Background="#F0F7FF" BorderBrush="#CCE0FF" BorderThickness="1"
+                        CornerRadius="8" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="隐私" FontSize="13" FontWeight="SemiBold" Foreground="#1A5FB4"/>
+                        <TextBlock Foreground="#33507A" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"
+                                   Text="翻译完全在本机进行，文字不会发送到任何服务器。日志默认不记录原文。密码管理器等敏感窗口会被自动识别并暂停。"/>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 底部按钮 -->
+        <Border Grid.Row="2" Background="#F0F0F0" BorderBrush="#DDDDDD" BorderThickness="0,1,0,0" Padding="24,14">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="SkipButton" Content="跳过" Width="88" Padding="0,6" Margin="0,0,8,0"
+                        Click="OnSkip"/>
+                <Button x:Name="FinishButton" Content="开始使用" Width="110" Padding="0,6"
+                        IsDefault="True" Click="OnFinish"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -33,6 +33,13 @@ public sealed record BubblePlacement(
     PlacementKind Kind,
     double Score);
 
+/// <summary>
+/// 一次布局的完整输出，含所有候选位置（供调试覆盖层可视化）。
+/// </summary>
+public sealed record LayoutResult(
+    IReadOnlyList<BubblePlacement> Placements,
+    IReadOnlyList<RectInt> AllCandidates);
+
 /// <summary>布局调参。</summary>
 public sealed record LayoutOptions
 {
@@ -82,30 +89,39 @@ public sealed class LayoutEngine
         IReadOnlyList<BubbleRequest> requests,
         RectInt viewport,
         IReadOnlyList<RectInt> occupied)
+        => LayoutDetailed(requests, viewport, occupied).Placements;
+
+    /// <summary>同上，但额外返回所有候选位置，供调试覆盖层显示。</summary>
+    public LayoutResult LayoutDetailed(
+        IReadOnlyList<BubbleRequest> requests,
+        RectInt viewport,
+        IReadOnlyList<RectInt> occupied)
     {
         var map = OccupancyMap.Build(viewport, occupied, _options.Inflation);
         var placed = new List<BubblePlacement>();
+        var allCandidates = new List<RectInt>();
 
         foreach (var request in requests)
         {
             // 原文本身也是占用区
             map.MarkOccupied(request.SourceBounds);
 
-            var placement = PlaceOne(request, map, viewport, placed);
+            var placement = PlaceOne(request, map, viewport, placed, allCandidates);
             placed.Add(placement);
 
             if (placement.Kind != PlacementKind.Badge)
                 map.MarkOccupied(placement.Rect);
         }
 
-        return placed;
+        return new LayoutResult(placed, allCandidates);
     }
 
     private BubblePlacement PlaceOne(
         BubbleRequest request,
         OccupancyMap map,
         RectInt viewport,
-        List<BubblePlacement> placed)
+        List<BubblePlacement> placed,
+        List<RectInt> allCandidates)
     {
         var src = request.SourceBounds;
         var size = request.PreferredSize;
@@ -115,6 +131,8 @@ public sealed class LayoutEngine
             .Where(c => c.Score > double.NegativeInfinity)
             .OrderByDescending(c => c.Score)
             .ToList();
+
+        allCandidates.AddRange(candidates.Select(c => c.Rect));
 
         if (candidates.Count == 0)
         {

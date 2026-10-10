@@ -73,6 +73,10 @@ public sealed class AppSettings
     public string? RemoteApiKey { get; set; }
     public string? RemoteModel { get; set; }
 
+    // ---- 开发辅助 ----
+    /// <summary>显示调试覆盖层（OCR 框、占用图、候选位置）。</summary>
+    public bool ShowDebugOverlay { get; set; }
+
     // ---- 首次启动 ----
     public bool FirstRunCompleted { get; set; }
     public string? ModelDirectory { get; set; }

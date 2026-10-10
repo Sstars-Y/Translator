@@ -36,6 +36,7 @@ public sealed class AppController : IDisposable
 
     private BubbleOverlayWindow? _bubbleWindow;
     private FloatingBarWindow? _barWindow;
+    private DebugOverlayWindow? _debugWindow;
     private DispatcherTimer? _pollTimer;
     private DispatcherTimer? _idleTimer;
     private DispatcherTimer? _debounceTimer;
@@ -76,6 +77,13 @@ public sealed class AppController : IDisposable
         var monitor = _capture.GetMonitors().FirstOrDefault();
         if (monitor is not null) _bubbleWindow.AttachToMonitor(monitor);
         _bubbleWindow.Show();
+
+        if (_settings.ShowDebugOverlay)
+        {
+            _debugWindow = new DebugOverlayWindow();
+            _debugWindow.AttachToMonitor(monitor ?? _capture.GetMonitors().First());
+            _debugWindow.Show();
+        }
 
         RegisterHotkeys();
         StartTimers();
@@ -284,7 +292,18 @@ public sealed class AppController : IDisposable
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 _bubbleWindow?.ShowAll();
+
+                // 先注入译文，再布局渲染
+                if (_bubbleWindow is not null)
+                {
+                    foreach (var (blockId, translated) in result.Translations)
+                        _bubbleWindow.SetTranslation(blockId, translated);
+                }
+
                 _bubbleWindow?.ApplyLayout(result.Placements, result.Blocks);
+
+                _debugWindow?.Render(result.Ocr, result.Blocks, result.Placements,
+                    result.Occupied, result.Diagnostics, result.Candidates);
 
                 var d = result.Diagnostics;
                 _barWindow?.SetStatus(
@@ -441,6 +460,7 @@ public sealed class AppController : IDisposable
         _idleTimer?.Stop();
         _debounceTimer?.Stop();
         _hotkeys?.Dispose();
+        _debugWindow?.Close();
         _cache?.Dispose();
         _capture?.Dispose();
         _ocr?.Dispose();

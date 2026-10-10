@@ -55,9 +55,24 @@ public partial class App : System.Windows.Application
         var settings = AppSettings.Load();
         _log.LogSourceText = settings.LogSourceText;
 
+        // ---- 托盘图标必须先于向导创建，否则向导关闭后 WPF 没有窗口锚点就会立即退出 ----
+        SetupTrayIcon(settings);
+
+        // ---- 首次启动向导 ----
+        if (!settings.FirstRunCompleted)
+        {
+            var wizard = new Views.FirstRunWindow(settings, _log);
+            wizard.Completed += (_, updated) =>
+            {
+                updated.Save();
+                settings = updated;
+                _log.LogSourceText = settings.LogSourceText;
+            };
+            wizard.ShowDialog();
+        }
+
         // ---- 主控 ----
         _controller = new AppController(settings, _log);
-        SetupTrayIcon(settings);
 
         try
         {
