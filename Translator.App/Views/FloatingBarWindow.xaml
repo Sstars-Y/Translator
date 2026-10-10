@@ -1,0 +1,123 @@
+<Window x:Class="Translator.App.Views.FloatingBarWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TranslatorBar"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ShowActivated="False"
+        ResizeMode="NoResize"
+        SizeToContent="WidthAndHeight"
+        Focusable="False">
+
+    <Window.Resources>
+        <!-- 悬浮栏外壳 -->
+        <Style x:Key="BarShell" TargetType="Border">
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Background" Value="#F21C1C1E"/>
+            <Setter Property="BorderBrush" Value="#33FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.35" Color="#000000"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 图标按钮 -->
+        <Style x:Key="BarButton" TargetType="Button">
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Foreground" Value="#EAEAEA"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="#33FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="#55FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 状态点 -->
+        <Style x:Key="StatusDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="10"/>
+            <Setter Property="Height" Value="10"/>
+            <Setter Property="Fill" Value="#4CAF50"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid x:Name="RootGrid" Background="{x:Null}">
+
+        <!-- ===== 形态一：收起（状态点 + 细条把手） ===== -->
+        <Border x:Name="CollapsedShell" Style="{StaticResource BarShell}"
+                CornerRadius="4" Padding="4,3" Visibility="Collapsed"
+                MouseLeftButtonDown="OnBarMouseDown" Cursor="SizeAll">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse x:Name="CollapsedDot" Style="{StaticResource StatusDot}"
+                         VerticalAlignment="Center"/>
+                <Rectangle Width="14" Height="2" Fill="#66FFFFFF"
+                           Margin="5,0,0,0" VerticalAlignment="Center" RadiusX="1" RadiusY="1"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ===== 形态二/三：紧凑与展开 ===== -->
+        <Border x:Name="ExpandedShell" Style="{StaticResource BarShell}"
+                MouseLeftButtonDown="OnBarMouseDown" Cursor="SizeAll">
+            <StackPanel>
+                <!-- 五个按钮 -->
+                <StackPanel x:Name="ButtonRow" Orientation="Horizontal">
+                    <Button x:Name="BtnPause" Style="{StaticResource BarButton}"
+                            Content="&#xE769;" ToolTip="开始 / 暂停" Click="OnTogglePause"/>
+                    <Button x:Name="BtnCapture" Style="{StaticResource BarButton}"
+                            Content="&#xE7C5;" ToolTip="框选工作区" Click="OnCapture"/>
+                    <Button x:Name="BtnCollapse" Style="{StaticResource BarButton}"
+                            Content="&#xE70D;" ToolTip="全部折叠 / 展开" Click="OnToggleCollapseAll"/>
+                    <Button x:Name="BtnTranslate" Style="{StaticResource BarButton}"
+                            Content="&#xE8C1;" ToolTip="手动翻译一次" Click="OnTranslateOnce"/>
+                    <Button x:Name="BtnSettings" Style="{StaticResource BarButton}"
+                            Content="&#xE713;" ToolTip="设置" Click="OnOpenSettings"/>
+                </StackPanel>
+
+                <!-- 展开形态：快速设置 -->
+                <StackPanel x:Name="QuickSettings" Visibility="Collapsed" Margin="2,7,2,2">
+                    <Separator Background="#33FFFFFF" Margin="0,0,0,6"/>
+
+                    <TextBlock Text="领域" Foreground="#99FFFFFF" FontSize="10" Margin="2,0,0,3"/>
+                    <ComboBox x:Name="DomainBox" Width="150" FontSize="11"
+                              SelectionChanged="OnDomainChanged"/>
+
+                    <TextBlock Text="透明度" Foreground="#99FFFFFF" FontSize="10" Margin="2,7,0,2"/>
+                    <Slider x:Name="OpacitySlider" Width="150" Minimum="0.3" Maximum="1.0"
+                            Value="0.95" ValueChanged="OnOpacityChanged"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="2,6,0,0">
+                        <CheckBox x:Name="AutoTranslateBox" Content="自动翻译"
+                                  Foreground="#CCFFFFFF" FontSize="11" IsChecked="True"
+                                  Checked="OnAutoTranslateChanged" Unchecked="OnAutoTranslateChanged"/>
+                    </StackPanel>
+
+                    <TextBlock x:Name="StatusText" Foreground="#88FFFFFF" FontSize="10"
+                               Margin="2,6,0,0" TextWrapping="Wrap" MaxWidth="160"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

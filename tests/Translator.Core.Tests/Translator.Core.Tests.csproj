@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <!-- xunit v3 以独立可执行文件运行，不依赖 vstest 的 testhost -->
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Translator.Core.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="FluentAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Translator.Core\Translator.Core.csproj" />
+  </ItemGroup>
+
+</Project>

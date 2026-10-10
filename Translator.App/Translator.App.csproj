@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- 关闭隐式 using：WinForms 会注入 System.Windows.Forms / System.Drawing，
+         它们与 WPF 的 Application / Point / TextBlock 撞名 -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>Translator.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Translator.Core\Translator.Core.csproj" />
+    <ProjectReference Include="..\Translator.Platform\Translator.Platform.csproj" />
+  </ItemGroup>
+
+</Project>
