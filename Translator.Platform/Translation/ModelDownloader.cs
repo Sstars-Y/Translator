@@ -113,10 +113,15 @@ public sealed class ModelDownloader
 
             if (isGzip)
             {
-                await using var input = File.OpenRead(tempPath);
-                await using var gz = new System.IO.Compression.GZipStream(input, System.IO.Compression.CompressionMode.Decompress);
-                await using var output = File.Create(finalPath);
-                await gz.CopyToAsync(output, ct).ConfigureAwait(false);
+                // 必须先把句柄全部释放再删 .part：Windows 下 File.OpenRead 的句柄不含
+                // FileShare.Delete，边解压边删会抛 "being used by another process"。
+                await using (var input = File.OpenRead(tempPath))
+                await using (var gz = new System.IO.Compression.GZipStream(input, System.IO.Compression.CompressionMode.Decompress))
+                await using (var output = File.Create(finalPath))
+                {
+                    await gz.CopyToAsync(output, ct).ConfigureAwait(false);
+                }
+
                 File.Delete(tempPath);
             }
             else

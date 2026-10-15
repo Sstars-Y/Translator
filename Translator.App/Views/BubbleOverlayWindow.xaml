@@ -12,53 +12,55 @@
         SizeToContent="Manual"
         Focusable="False">
 
+    <!-- 样式必须挂在 Window.Resources 上：代码里用 this.FindResource(...) 做窗口级查找，
+         资源查找只会沿元素向上走，放在下面 Canvas.Resources 里窗口自己是看不见的。 -->
+    <Window.Resources>
+
+        <!-- 气泡外观：圆角、半透明、浅色/深色自适应 -->
+        <Style x:Key="BubbleStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="MaxWidth" Value="360"/>
+            <Setter Property="Background" Value="#F2FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#33000000"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="10" ShadowDepth="1"
+                                      Opacity="0.22" Color="#000000"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 深色模式下的气泡 -->
+        <Style x:Key="BubbleStyleDark" TargetType="Border" BasedOn="{StaticResource BubbleStyle}">
+            <Setter Property="Background" Value="#F21E1E1E"/>
+            <Setter Property="BorderBrush" Value="#40FFFFFF"/>
+        </Style>
+
+        <!-- 译文文字 -->
+        <Style x:Key="TranslationTextStyle" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="#1A1A1A"/>
+            <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="LineHeight" Value="20"/>
+        </Style>
+
+        <Style x:Key="TranslationTextStyleDark" TargetType="TextBlock" BasedOn="{StaticResource TranslationTextStyle}">
+            <Setter Property="Foreground" Value="#F0F0F0"/>
+        </Style>
+
+        <!-- 编号小图标（降级形态） -->
+        <Style x:Key="BadgeStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="9"/>
+            <Setter Property="Width" Value="18"/>
+            <Setter Property="Height" Value="18"/>
+            <Setter Property="Background" Value="#D93399FF"/>
+        </Style>
+
+    </Window.Resources>
+
     <!-- 气泡层：默认整体点击穿透，只有气泡本身接收点击 -->
-    <Canvas x:Name="BubbleCanvas" Background="{x:Null}" IsHitTestVisible="True">
-        <Canvas.Resources>
-
-            <!-- 气泡外观：圆角、半透明、浅色/深色自适应 -->
-            <Style x:Key="BubbleStyle" TargetType="Border">
-                <Setter Property="CornerRadius" Value="8"/>
-                <Setter Property="Padding" Value="10,7"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="MaxWidth" Value="360"/>
-                <Setter Property="Background" Value="#F2FFFFFF"/>
-                <Setter Property="BorderBrush" Value="#33000000"/>
-                <Setter Property="Effect">
-                    <Setter.Value>
-                        <DropShadowEffect BlurRadius="10" ShadowDepth="1"
-                                          Opacity="0.22" Color="#000000"/>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <!-- 深色模式下的气泡 -->
-            <Style x:Key="BubbleStyleDark" TargetType="Border" BasedOn="{StaticResource BubbleStyle}">
-                <Setter Property="Background" Value="#F21E1E1E"/>
-                <Setter Property="BorderBrush" Value="#40FFFFFF"/>
-            </Style>
-
-            <!-- 译文文字 -->
-            <Style x:Key="TranslationTextStyle" TargetType="TextBlock">
-                <Setter Property="TextWrapping" Value="Wrap"/>
-                <Setter Property="Foreground" Value="#1A1A1A"/>
-                <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="LineHeight" Value="20"/>
-            </Style>
-
-            <Style x:Key="TranslationTextStyleDark" TargetType="TextBlock" BasedOn="{StaticResource TranslationTextStyle}">
-                <Setter Property="Foreground" Value="#F0F0F0"/>
-            </Style>
-
-            <!-- 编号小图标（降级形态） -->
-            <Style x:Key="BadgeStyle" TargetType="Border">
-                <Setter Property="CornerRadius" Value="9"/>
-                <Setter Property="Width" Value="18"/>
-                <Setter Property="Height" Value="18"/>
-                <Setter Property="Background" Value="#D93399FF"/>
-            </Style>
-
-        </Canvas.Resources>
-    </Canvas>
+    <Canvas x:Name="BubbleCanvas" Background="{x:Null}" IsHitTestVisible="True" />
 </Window>

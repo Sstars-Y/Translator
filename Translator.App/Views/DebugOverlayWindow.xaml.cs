@@ -99,13 +99,19 @@ public partial class DebugOverlayWindow : Window
         Canvas.SetTop(LegendPanel, Math.Max(12, Height - 130));
     }
 
+    /// <summary>
+    /// 画一个框。传入的 rect 是屏幕绝对物理像素，而 Canvas 用 DIP：
+    /// 要先减掉显示器原点，再除以缩放比，否则 150% 缩放下会画到 1.5 倍远的地方。
+    /// </summary>
     private void DrawRect(RectInt rect, int offsetX, int offsetY,
         Color fill, Color stroke, double thickness, bool dashed = false)
     {
+        double scale = _monitor?.DpiScale > 0 ? _monitor.DpiScale : 1.0;
+
         var shape = new Rectangle
         {
-            Width = Math.Max(1, rect.Width),
-            Height = Math.Max(1, rect.Height),
+            Width = Math.Max(1, rect.Width / scale),
+            Height = Math.Max(1, rect.Height / scale),
             Stroke = new SolidColorBrush(stroke),
             StrokeThickness = thickness,
             Fill = fill == Colors.Transparent ? null : new SolidColorBrush(fill),
@@ -117,8 +123,8 @@ public partial class DebugOverlayWindow : Window
             shape.StrokeDashArray = [3, 3];
         }
 
-        Canvas.SetLeft(shape, rect.X - offsetX);
-        Canvas.SetTop(shape, rect.Y - offsetY);
+        Canvas.SetLeft(shape, (rect.X - offsetX) / scale);
+        Canvas.SetTop(shape, (rect.Y - offsetY) / scale);
         OverlayCanvas.Children.Add(shape);
     }
 

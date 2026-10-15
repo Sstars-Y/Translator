@@ -7,6 +7,7 @@ using Translator.Core.Abstractions;
 using Translator.Core.Caching;
 using Translator.Core.Configuration;
 using Translator.Core.Diagnostics;
+using Translator.Core.Layout;
 using Translator.Core.Models;
 using Translator.Core.Terms;
 using Translator.Core.Text;
@@ -37,6 +38,7 @@ public sealed class AppController : IDisposable
     private BubbleOverlayWindow? _bubbleWindow;
     private FloatingBarWindow? _barWindow;
     private DebugOverlayWindow? _debugWindow;
+    private SelectionFrameWindow? _frameWindow;
     private DispatcherTimer? _pollTimer;
     private DispatcherTimer? _idleTimer;
     private DispatcherTimer? _debounceTimer;
@@ -71,12 +73,17 @@ public sealed class AppController : IDisposable
         _barWindow.OpacityChanged += (_, value) => _settings.BubbleOpacity = value;
         _barWindow.AutoTranslateChanged += (_, enabled) => _settings.AutoTranslate = enabled;
         _barWindow.Show();
+        // Show() 之后 WPF 才知道窗口落在哪块屏、真实 DPI 是多少，这里再校正一次位置。
+        _barWindow.EnsureOnScreen();
 
         _bubbleWindow = new BubbleOverlayWindow();
         _bubbleWindow.Initialize(_settings);
         var monitor = _capture.GetMonitors().FirstOrDefault();
         if (monitor is not null) _bubbleWindow.AttachToMonitor(monitor);
         _bubbleWindow.Show();
+
+        // 选区指示框：选定范围后才显示，这里先建好（首次 Show 由 ShowFor 触发）
+        _frameWindow = new SelectionFrameWindow();
 
         if (_settings.ShowDebugOverlay)
         {
@@ -150,12 +157,42 @@ public sealed class AppController : IDisposable
                 ? _settings.SensitiveProcessBlacklist
                 : null);
 
+        // 流水线在屏幕物理像素里算布局，界面尺寸（行高、间距、搜索步长）都是 DIP，
+        // 必须按显示器缩放换算，否则高 DPI 下气泡尺寸与间距都会被算小。
+        double uiScale = ResolveUiScale();
+
         _pipeline = new TranslationPipeline(_capture, _ocr, _translator, _terms, _cache, new PipelineOptions
         {
             TargetLanguage = _settings.TargetLanguage,
             BubbleWidthFactor = _settings.BubbleWidthFactor,
             BubbleLineHeight = (int)Math.Round(_settings.BubbleFontSize * 1.6),
+            UiScale = uiScale,
+            // 气泡样式 MaxWidth=360 DIP，加左右内边距约 20 DIP；估算宽度不能超过这个值，
+            // 否则长原文会把占位宽度估得过大，气泡被误判为放不下而丢到别处。
+            MaxBubbleWidth = (int)Math.Round(380 * uiScale),
+            Layout = new LayoutOptions
+            {
+                Gap = (int)Math.Round(8 * uiScale),
+                Inflation = (int)Math.Round(4 * uiScale),
+                SearchStep = Math.Max(2, (int)Math.Round(6 * uiScale)),
+            },
         });
+    }
+
+    /// <summary>主显示器的缩放比（DPI / 96）。取不到时按 1.0 处理。</summary>
+    private double ResolveUiScale()
+    {
+        try
+        {
+            var monitors = _capture.GetMonitors();
+            var monitor = monitors.FirstOrDefault(m => m.IsPrimary) ?? monitors.FirstOrDefault();
+            return monitor?.DpiScale > 0 ? monitor.DpiScale : 1.0;
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"读取显示器缩放失败，按 1.0 处理：{ex.Message}");
+            return 1.0;
+        }
     }
 
     /// <summary>从本地目录加载术语文件（阶段 6：先不做导入界面，手动编辑）。</summary>
@@ -181,7 +218,12 @@ public sealed class AppController : IDisposable
 
             var json = File.ReadAllText(path);
             var entries = System.Text.Json.JsonSerializer.Deserialize<List<TermEntry>>(json,
-                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    // 示例文件里 scope 写的是 "Global"/"Domain" 这种可读字符串，必须加枚举转换器才能解析
+                    Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+                });
 
             if (entries is not null)
             {
@@ -282,7 +324,11 @@ public sealed class AppController : IDisposable
         {
             var exclusions = new List<RectInt>();
             if (_barWindow is not null) exclusions.Add(_barWindow.GetBarBounds());
-            if (_bubbleWindow is not null) exclusions.AddRange(_bubbleWindow.GetOccupiedRegions());
+
+            // 注意：不要把气泡层自己当前的气泡当作占用区。
+            // 每轮布局都会把当前所有气泡一起重排（LayoutEngine 内部已经保证同批气泡互不重叠），
+            // 如果把上一轮的气泡位置也算成"被占用"，布局只能另找位置，
+            // 气泡就会每刷新一次往上/往旁边跳一次。灵动岛是真正不动的遮挡物，保留。
 
             var result = await _pipeline.RunAsync(region, exclusions);
 
@@ -356,6 +402,10 @@ public sealed class AppController : IDisposable
     private async Task OnRegionSelectedAsync(RectInt region)
     {
         _region = region;
+
+        // 把翻译范围画在屏幕上，让人随时看得见这次翻的是哪一块
+        _frameWindow?.ShowFor(region);
+
         _bubbleWindow?.ClearAll();
         _log.Info($"已选定工作区 {region}");
 
@@ -378,8 +428,18 @@ public sealed class AppController : IDisposable
     private void SetPaused(bool paused)
     {
         _isPaused = paused;
-        if (paused) _bubbleWindow?.HideAll();
-        else _bubbleWindow?.ShowAll();
+
+        if (paused)
+        {
+            _bubbleWindow?.HideAll();
+            _frameWindow?.HideFrame(); // 暂停时连范围框一起收起
+        }
+        else
+        {
+            _bubbleWindow?.ShowAll();
+            if (_region is RectInt region) _frameWindow?.ShowFor(region);
+        }
+
         _log.Info(paused ? "已暂停" : "已恢复");
     }
 
@@ -461,6 +521,7 @@ public sealed class AppController : IDisposable
         _debounceTimer?.Stop();
         _hotkeys?.Dispose();
         _debugWindow?.Close();
+        _frameWindow?.Close();
         _cache?.Dispose();
         _capture?.Dispose();
         _ocr?.Dispose();

@@ -110,6 +110,46 @@ public class LayoutEngineTests
         p.Rect.Y.Should().BeGreaterThanOrEqualTo(0);
         p.Rect.Right.Should().BeLessThanOrEqualTo(Viewport.Right);
     }
+
+    [Fact]
+    public void 原文贴近视口右边缘时气泡不应显示到屏幕外()
+    {
+        var engine = new LayoutEngine();
+        // 原文右边缘 1100，离视口右边只剩 100px，而气泡宽 300
+        var src = new RectInt(600, 100, 500, 20);
+
+        var p = engine.Layout([Request("a", src, 300, 44)], Viewport, []).Single();
+
+        p.Rect.Right.Should().BeLessThanOrEqualTo(Viewport.Right, "气泡不能露出屏幕外");
+        p.Rect.X.Should().BeGreaterThanOrEqualTo(Viewport.X);
+    }
+
+    [Fact]
+    public void 真机复现的小视口右边缘场景气泡应完整落在视口内()
+    {
+        var engine = new LayoutEngine();
+        // 150% 缩放下的真机读数：选区 1720,440 起 820x260，原文右边缘 2431
+        var viewport = new RectInt(1720, 440, 820, 260);
+        var src = new RectInt(1750, 490, 681, 50);
+
+        var p = engine.Layout([Request("a", src, 272, 83)], viewport, []).Single();
+
+        p.Rect.Right.Should().BeLessThanOrEqualTo(viewport.Right);
+        p.Rect.Bottom.Should().BeLessThanOrEqualTo(viewport.Bottom);
+    }
+
+    [Fact]
+    public void 气泡比视口还大时应至少贴住视口左上角()
+    {
+        var engine = new LayoutEngine();
+        var viewport = new RectInt(100, 100, 200, 100);
+        var src = new RectInt(120, 120, 60, 20);
+
+        var p = engine.Layout([Request("a", src, 800, 400)], viewport, []).Single();
+
+        p.Rect.X.Should().BeGreaterThanOrEqualTo(viewport.X);
+        p.Rect.Y.Should().BeGreaterThanOrEqualTo(viewport.Y);
+    }
 }
 
 public class OccupancyMapTests

@@ -61,7 +61,10 @@ public sealed class GdiCapture : ICapture
                     biPlanes = 1,
                     biBitCount = 32,
                     biCompression = 0, // BI_RGB
-                }
+                },
+                // BI_RGB 用不到调色板，但 ByValArray 字段不能是 null，
+                // 否则封送阶段直接抛异常，每次画面捕获都会失败。
+                bmiColors = new uint[256],
             };
 
             int stride = region.Width * 4;

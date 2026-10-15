@@ -73,14 +73,22 @@ public partial class App : System.Windows.Application
 
         // ---- 主控 ----
         _controller = new AppController(settings, _log);
+        _ = StartControllerAsync(_controller);
+    }
 
+    /// <summary>
+    /// 启动主控。StartAsync 是 async 方法，异常不会在调用点抛出，
+    /// 必须 await 才能把启动失败暴露出来（原来的 fire-and-forget 只会静默变哑）。
+    /// </summary>
+    private async Task StartControllerAsync(AppController controller)
+    {
         try
         {
-            _ = _controller.StartAsync();
+            await controller.StartAsync();
         }
         catch (Exception ex)
         {
-            _log.Error("启动失败", ex);
+            _log?.Error("启动失败", ex);
             System.Windows.MessageBox.Show($"启动失败：{ex.Message}", "屏幕翻译",
                 MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown();

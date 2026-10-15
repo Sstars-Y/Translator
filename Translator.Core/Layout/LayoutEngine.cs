@@ -136,13 +136,30 @@ public sealed class LayoutEngine
 
         if (candidates.Count == 0)
         {
-            // 降级为编号小图标，贴在原文右上角
-            var badge = new RectInt(src.Right - 18, src.Y - 10, 18, 18);
+            // 降级为编号小图标，贴在原文右上角（同样夹进视口，别跑到屏幕外）
+            var badge = ClampInto(new RectInt(src.Right - 18, src.Y - 10, 18, 18), viewport);
             return new BubblePlacement(request.BlockId, badge, PlacementKind.Badge, -1);
         }
 
+        // 兜底：万一选中的候选仍有溢出（例如气泡比视口还大），把它挪回视口内，
+        // 否则气泡会显示在屏幕外 —— 原文贴着屏幕边缘时最容易出现。
         var best = candidates[0];
-        return new BubblePlacement(request.BlockId, best.Rect, best.Kind, best.Score);
+        var rect = ClampInto(best.Rect, viewport);
+        return new BubblePlacement(request.BlockId, rect, best.Kind, best.Score);
+    }
+
+    /// <summary>把矩形夹进边界内：先往左上收，收到顶就贴左/上边。</summary>
+    private static RectInt ClampInto(RectInt rect, RectInt bounds)
+    {
+        int dx = 0;
+        if (rect.Right > bounds.Right) dx = bounds.Right - rect.Right;
+        if (rect.X + dx < bounds.X) dx = bounds.X - rect.X;
+
+        int dy = 0;
+        if (rect.Bottom > bounds.Bottom) dy = bounds.Bottom - rect.Bottom;
+        if (rect.Y + dy < bounds.Y) dy = bounds.Y - rect.Y;
+
+        return dx == 0 && dy == 0 ? rect : rect.Offset(dx, dy);
     }
 
     /// <summary>生成候选位置：优先右侧空白，其次左侧、下方、上方。</summary>
@@ -238,9 +255,10 @@ public sealed class LayoutEngine
         if (occupancy > _options.MaxOccupancy) return double.NegativeInfinity;
         score -= occupancy * 60;
 
-        // 优先留在视口内
-        if (rect.X < viewport.X || rect.Right > viewport.Right) score -= 40;
-        if (rect.Y < viewport.Y || rect.Bottom > viewport.Bottom) score -= 40;
+        // 必须完整落在视口内。只沾到一条边的候选会有一半飘到屏幕外，
+        // 所以给出压倒性惩罚：让"完整放得下"的候选（哪怕位置差一些）优先胜出。
+        if (rect.X < viewport.X || rect.Right > viewport.Right) score -= 1000;
+        if (rect.Y < viewport.Y || rect.Bottom > viewport.Bottom) score -= 1000;
 
         return score;
     }

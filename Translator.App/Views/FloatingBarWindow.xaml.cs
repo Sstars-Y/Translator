@@ -22,6 +22,16 @@ public partial class FloatingBarWindow : Window
     private Point _dragStart;
     private double _dragStartLeft, _dragStartTop;
     private BarForm _form = BarForm.Compact;
+    private EdgeAnchor _anchor = EdgeAnchor.None;
+
+    /// <summary>贴边时留的边距（DIP）。</summary>
+    private const double EdgeMargin = 12;
+
+    /// <summary>
+    /// 吸附到哪条竖直边。None = 没让它贴边（只保证不出屏）；
+    /// Unspecified = 位置来自上次记住的坐标，等拿到真实窗口宽度后再判定一次它贴的是哪条边。
+    /// </summary>
+    private enum EdgeAnchor { None, Left, Right, Unspecified }
 
     /// <summary>工作区框选完成。</summary>
     public event EventHandler<RectInt>? RegionSelected;
@@ -51,6 +61,13 @@ public partial class FloatingBarWindow : Window
     {
         InitializeComponent();
         OverlayWindow.Configure(this, clickThrough: false, excludeFromCapture: true);
+
+        // 尺寸随内容变（SizeToContent），位置却由用户决定：
+        // 尺寸一变就重新对齐吸附的那条边，并保证永远留在工作区内。
+        SizeChanged += (_, _) => KeepAnchoredEdge();
+        // 任务栏自动隐藏、分辨率/工作区变化：重新落屏，免得悬浮栏留在屏幕外。
+        SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
+        Closed += (_, _) => SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
     }
 
     public bool IsPaused { get; private set; }
@@ -90,8 +107,8 @@ public partial class FloatingBarWindow : Window
         ExpandedShell.Visibility = _form == BarForm.Collapsed ? Visibility.Collapsed : Visibility.Visible;
         QuickSettings.Visibility = _form == BarForm.Expanded ? Visibility.Visible : Visibility.Collapsed;
 
-        // 展开/收起时重新贴边
-        if (_settings.BarSnapToEdges && IsLoaded) SnapToNearestEdge();
+        // 形态变了尺寸就变了：只做落屏校正，绝不主动挪位置（贴边只发生在拖动松手之后）。
+        EnsureInsideWorkArea();
     }
 
     /// <summary>点状态点或把手时在收起与紧凑之间切换。</summary>
@@ -225,39 +242,110 @@ public partial class FloatingBarWindow : Window
         SavePosition();
     }
 
-    private double GetDpiScale()
+    /// <summary>
+    /// 当前 DPI 缩放。窗口还没 Show 时 PresentationSource 为空，
+    /// 这时只能信 MonitorEnumerator 报的每屏 DPI，否则 DIP 和物理像素会被算混。
+    /// </summary>
+    private double GetDpiScale(MonitorInfo? monitor = null)
     {
         var source = PresentationSource.FromVisual(this);
-        return source?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+        if (source?.CompositionTarget is { } target) return target.TransformToDevice.M11;
+
+        var m = monitor ?? _currentMonitor;
+        return m?.DpiScale > 0 ? m.DpiScale : 1.0;
     }
 
-    /// <summary>把悬浮栏吸到最近的屏幕边缘。</summary>
+    /// <summary>窗口中心所在的那块屏；取不到时退回当前屏。</summary>
+    private MonitorInfo? MonitorAtWindow()
+    {
+        try
+        {
+            var center = PointToScreen(new Point(ActualWidth / 2, ActualHeight / 2));
+            return MonitorEnumerator.MonitorsUnderPoint((int)center.X, (int)center.Y);
+        }
+        catch (InvalidOperationException)
+        {
+            return _currentMonitor;
+        }
+    }
+
+    /// <summary>把悬浮栏吸到最近的竖直边缘。只在拖动松手时调用，平时绝不自动挪动。</summary>
     private void SnapToNearestEdge()
     {
-        var monitor = MonitorEnumerator.MonitorsUnderPoint(
-            (int)PointToScreen(new Point(0, 0)).X, (int)PointToScreen(new Point(0, 0)).Y)
-            ?? _currentMonitor;
-        if (monitor is null) return;
+        if (ActualWidth <= 0 || ActualHeight <= 0) return;
 
-        double scale = GetDpiScale();
+        var monitor = MonitorAtWindow() ?? _currentMonitor;
+        if (monitor is null) return;
+        _currentMonitor = monitor;
+
+        double scale = GetDpiScale(monitor);
         double workLeft = monitor.WorkingArea.X / scale;
         double workTop = monitor.WorkingArea.Y / scale;
         double workRight = monitor.WorkingArea.Right / scale;
         double workBottom = monitor.WorkingArea.Bottom / scale;
 
-        const double margin = 12;
-
         // 吸附到最近的水平边（左/右）
         double centerX = Left + ActualWidth / 2;
         double workCenterX = (workLeft + workRight) / 2;
 
-        Left = centerX < workCenterX
-            ? workLeft + margin
-            : workRight - ActualWidth - margin;
+        if (centerX < workCenterX)
+        {
+            _anchor = EdgeAnchor.Left;
+            Left = workLeft + EdgeMargin;
+        }
+        else
+        {
+            _anchor = EdgeAnchor.Right;
+            Left = workRight - ActualWidth - EdgeMargin;
+        }
 
-        // 垂直方向限制在工作区内
-        Top = Math.Clamp(Top, workTop + margin, workBottom - ActualHeight - margin);
+        // 垂直方向只限制在工作区内，不主动挪
+        Top = Math.Clamp(Top, workTop + EdgeMargin,
+            Math.Max(workTop + EdgeMargin, workBottom - ActualHeight - EdgeMargin));
     }
+
+    /// <summary>
+    /// 窗口尺寸变化后重新对齐：保持不变的是吸附的那条边，而不是 Left
+    /// （SizeToContent 下状态文字一变宽，Left 不动就会把窗口顶出屏幕）。
+    /// </summary>
+    private void KeepAnchoredEdge()
+    {
+        var monitor = _currentMonitor ?? MonitorAtWindow();
+        if (monitor is null) return;
+
+        double scale = GetDpiScale(monitor);
+        if (scale <= 0) scale = 1.0;
+
+        if (_anchor == EdgeAnchor.Unspecified)
+        {
+            // 记住的位置当初可能就是贴边的，趁现在有真实宽度判定一次
+            _anchor = InferAnchor(monitor, scale);
+        }
+
+        if (ActualWidth > 0 && _anchor is EdgeAnchor.Left or EdgeAnchor.Right)
+        {
+            double workLeft = monitor.WorkingArea.X / scale;
+            double workRight = monitor.WorkingArea.Right / scale;
+
+            Left = _anchor == EdgeAnchor.Right
+                ? workRight - ActualWidth - EdgeMargin
+                : workLeft + EdgeMargin;
+        }
+
+        ClampToWorkArea(monitor, scale);
+    }
+
+    /// <summary>只保证不出屏，不改变用户摆放的位置。</summary>
+    private void EnsureInsideWorkArea()
+    {
+        var monitor = _currentMonitor ?? MonitorAtWindow();
+        if (monitor is null) return;
+
+        ClampToWorkArea(monitor, GetDpiScale(monitor));
+    }
+
+    private void OnSystemParametersChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        => Dispatcher.BeginInvoke(EnsureInsideWorkArea);
 
     private void RestorePosition()
     {
@@ -267,20 +355,71 @@ public partial class FloatingBarWindow : Window
         _currentMonitor = monitors.FirstOrDefault(m =>
             _settings.BarPositions.ContainsKey(m.DeviceName)) ?? monitors[0];
 
-        double scale = GetDpiScale();
+        // 窗口此时还没 Show()，PresentationSource 为空，只能先信 MonitorEnumerator 的每屏 DPI。
+        double scale = GetDpiScale(_currentMonitor);
 
         if (_settings.BarPositions.TryGetValue(_currentMonitor.DeviceName, out var pos))
         {
             Left = pos.IsPhysical ? pos.Left / scale : pos.Left;
             Top = pos.IsPhysical ? pos.Top / scale : pos.Top;
+            // 贴的是哪条边等 Show() 拿到真实宽度后再判（见 KeepAnchoredEdge）
+            _anchor = EdgeAnchor.Unspecified;
         }
         else
         {
-            // 默认放主屏右上角
+            // 默认放主屏右上角，并按右边缘对齐
             var m = _currentMonitor;
             Left = (m.WorkingArea.Right / scale) - 160;
             Top = (m.WorkingArea.Y / scale) + 60;
+            _anchor = EdgeAnchor.Right;
         }
+
+        ClampToWorkArea(_currentMonitor, scale);
+    }
+
+    /// <summary>从记住的位置推断它当时贴的是哪条边（距边一个边距以内才算贴边）。</summary>
+    private EdgeAnchor InferAnchor(MonitorInfo monitor, double scale)
+    {
+        if (ActualWidth <= 0) return EdgeAnchor.Unspecified;
+
+        double workLeft = monitor.WorkingArea.X / scale;
+        double workRight = monitor.WorkingArea.Right / scale;
+
+        if (Math.Abs(Left - workLeft) <= EdgeMargin + 8) return EdgeAnchor.Left;
+        if (Math.Abs(workRight - (Left + ActualWidth)) <= EdgeMargin + 8) return EdgeAnchor.Right;
+
+        return EdgeAnchor.None;
+    }
+
+    /// <summary>把窗口夹回显示器工作区内，保证它一定看得见（尺寸还未知时用保守估计）。</summary>
+    private void ClampToWorkArea(MonitorInfo monitor, double scale)
+    {
+        if (scale <= 0) scale = 1.0;
+
+        double width = ActualWidth > 0 ? ActualWidth : 200;
+        double height = ActualHeight > 0 ? ActualHeight : 48;
+
+        double workLeft = monitor.WorkingArea.X / scale;
+        double workTop = monitor.WorkingArea.Y / scale;
+        double workRight = monitor.WorkingArea.Right / scale;
+        double workBottom = monitor.WorkingArea.Bottom / scale;
+
+        if (double.IsNaN(Left) || double.IsInfinity(Left)) Left = workLeft;
+        if (double.IsNaN(Top) || double.IsInfinity(Top)) Top = workTop;
+
+        Left = Math.Clamp(Left, workLeft, Math.Max(workLeft, workRight - width));
+        Top = Math.Clamp(Top, workTop, Math.Max(workTop, workBottom - height));
+    }
+
+    /// <summary>Show() 之后调用：这时才能拿到真实 DPI 与窗口尺寸，做最后一次落屏校正。</summary>
+    public void EnsureOnScreen()
+    {
+        var monitor = MonitorAtWindow() ?? _currentMonitor
+            ?? MonitorEnumerator.GetMonitors().FirstOrDefault();
+        if (monitor is null) return;
+
+        _currentMonitor = monitor;
+        KeepAnchoredEdge();
     }
 
     private void SavePosition()
@@ -291,14 +430,28 @@ public partial class FloatingBarWindow : Window
             new BarPosition(Left * scale, Top * scale) { IsPhysical = true };
     }
 
-    /// <summary>供布局算法避让悬浮栏。</summary>
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        // 换屏或系统缩放变了：位置要按新 DPI 重算，否则会漂
+        Dispatcher.BeginInvoke(KeepAnchoredEdge);
+    }
+
+    /// <summary>
+    /// 供布局算法避让悬浮栏（屏幕绝对物理像素）。
+    /// PointToScreen 已经是物理像素，而 ActualWidth/Height 是 DIP，要按缩放换算。
+    /// </summary>
     public RectInt GetBarBounds()
     {
         try
         {
             var topLeft = PointToScreen(new Point(0, 0));
-            return new RectInt((int)topLeft.X, (int)topLeft.Y,
-                (int)ActualWidth, (int)ActualHeight);
+            double scale = GetDpiScale(_currentMonitor);
+            return new RectInt(
+                (int)Math.Round(topLeft.X),
+                (int)Math.Round(topLeft.Y),
+                Math.Max(1, (int)Math.Round(ActualWidth * scale)),
+                Math.Max(1, (int)Math.Round(ActualHeight * scale)));
         }
         catch (InvalidOperationException)
         {

@@ -90,4 +90,53 @@ public static class OverlayWindow
     /// <summary>判断窗口当前是否已排除捕获。</summary>
     public static bool IsExcludedFromCapture(Window window)
         => WindowManager.IsExcludedFromCapture(new WindowInteropHelper(window).Handle);
+
+    /// <summary>
+    /// 把窗口的"可点区域"收缩到这些矩形内（窗口坐标，物理像素），
+    /// 传空集合表示恢复整窗点击穿透。
+    ///
+    /// 为什么需要它：气泡层是 WS_EX_TRANSPARENT 的整屏窗口，鼠标消息会全部
+    /// 漏给下层窗口，气泡的悬停/点击永远收不到。用窗口区域把可点范围限制在
+    /// 气泡本身，既能让气泡可交互，其余地方仍然照常点到下面的窗口。
+    /// </summary>
+    public static void SetInputRegion(Window window, IReadOnlyList<RectInt> rects)
+    {
+        var hwnd = new WindowInteropHelper(window).Handle;
+        if (hwnd == IntPtr.Zero) return;
+
+        IntPtr region = IntPtr.Zero;
+
+        foreach (var r in rects)
+        {
+            if (r.Width <= 0 || r.Height <= 0) continue;
+
+            var part = NativeMethods.CreateRectRgn(r.X, r.Y, r.X + r.Width, r.Y + r.Height);
+            if (part == IntPtr.Zero) continue;
+
+            if (region == IntPtr.Zero)
+            {
+                region = part;
+            }
+            else
+            {
+                NativeMethods.CombineRgn(region, region, part, NativeMethods.RGN_OR);
+                NativeMethods.DeleteObject(part);
+            }
+        }
+
+        if (region == IntPtr.Zero)
+        {
+            // 没有气泡：整窗穿透，桌面照常可点
+            NativeMethods.SetWindowRgn(hwnd, IntPtr.Zero, true);
+            SetClickThrough(window, true);
+            return;
+        }
+
+        SetClickThrough(window, false);              // 区域内的点击归自己
+        if (NativeMethods.SetWindowRgn(hwnd, region, true) == 0)
+        {
+            // 设置失败时窗口区域仍归我们所有，释放掉避免泄漏
+            NativeMethods.DeleteObject(region);
+        }
+    }
 }

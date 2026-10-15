@@ -166,4 +166,21 @@ public static partial class NativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetCursorPos(out POINT lpPoint);
+
+    // ---- 窗口输入区域：只让气泡本体可点，其余部分继续穿透 ----
+    public const int RGN_OR = 2;
+
+    /// <summary>设置窗口区域。区域句柄交给系统接管，成功后不要再 DeleteObject。</summary>
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, [MarshalAs(UnmanagedType.Bool)] bool bRedraw);
+
+    [LibraryImport("gdi32.dll", SetLastError = true)]
+    public static partial IntPtr CreateRectRgn(int x1, int y1, int x2, int y2);
+
+    [LibraryImport("gdi32.dll", SetLastError = true)]
+    public static partial int CombineRgn(IntPtr hrgnDst, IntPtr hrgnSrc1, IntPtr hrgnSrc2, int iMode);
+
+    [LibraryImport("gdi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool DeleteObject(IntPtr hObject);
 }

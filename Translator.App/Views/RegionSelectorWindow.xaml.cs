@@ -45,9 +45,9 @@ public partial class RegionSelectorWindow : Window
         Width = monitor.Bounds.Width / _dpiScale;
         Height = monitor.Bounds.Height / _dpiScale;
 
-        Show();
-        Activate();
-        Focus();
+        // 必须用模态显示：调用方（AppController / FloatingBarWindow）在 ShowFor 返回后
+        // 立刻读取 SelectedRegion，非模态 Show() 会立即返回，选区就永远是 null。
+        ShowDialog();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
